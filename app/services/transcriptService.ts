@@ -77,7 +77,22 @@ export async function notifyCivilianCallStarted(sessionId: string) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    let errorBody = await res.text();
+    let errorBody = await res.text().catch(() => '');
+    console.warn(`notifyCivilianCallStarted returned ${res.status}: ${errorBody}`);
+
+    // If the endpoint doesn't exist (404), try a best-effort fallback: create an incident
+    // by sending an empty transcript. This helps older server versions or different route names.
+    if (res.status === 404) {
+      try {
+        console.log('Falling back to sendTranscript to initialize incident');
+        await sendTranscript('', sessionId, 5000, 'civilian');
+        return { ok: true, fallback: true } as any;
+      } catch (fallbackErr) {
+        let fe = fallbackErr as Error;
+        throw new Error(`Failed to notify call started (404) and fallback failed: ${fe.message}`);
+      }
+    }
+
     throw new Error(`Failed to notify call started: ${res.status} ${errorBody}`);
   }
   return res;

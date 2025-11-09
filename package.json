@@ -55,5 +55,8 @@
     "metro-react-native-babel-preset": "^0.77.0",
     "typescript": "~5.9.2"
   },
+  "browser": {
+    "child_process": false
+  },
   "private": true
 }

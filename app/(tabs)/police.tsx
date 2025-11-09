@@ -1,10 +1,10 @@
-import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import React, { useEffect, useState } from 'react';
 import { Button, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import 'react-native-get-random-values';
 import uuid from 'react-native-uuid';
+import { transcribeAudio } from '../services/audioService';
 import { sendTranscript } from '../services/transcriptService';
 
 // Define types for ElevenLabs API responses
@@ -18,16 +18,12 @@ type MultiChannelResponse = {
 
 type TranscriptionResponse = SingleChannelResponse | MultiChannelResponse;
 
-// Note: Store this in your environment variables or app config
-const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
 
 // Key for storing device ID in AsyncStorage
 const DEVICE_ID_KEY = '@vigilis_device_id';
 
-// Initialize the ElevenLabs client once
-const elevenLabs = new ElevenLabsClient({
-  apiKey: ELEVENLABS_API_KEY,
-});
+// ElevenLabs SDK removed to avoid Node-only imports in the RN bundle.
+// This module will forward audio to `app/services/audioService.ts` instead.
 
 export default function PoliceTab() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -161,50 +157,13 @@ export default function PoliceTab() {
   }
 
 async function uploadAndTranscribe(fileUri: string): Promise<string> {
-    try {
-        const fetchResponse = await fetch(fileUri);
-        let audioBlob = await fetchResponse.blob();
-        
-        audioBlob = new Blob([audioBlob], { 
-            type: 'audio/mp4' 
-        });
-
-        const result = await elevenLabs.speechToText.convert({
-            file: audioBlob,
-            modelId: "scribe_v1",
-            languageCode: "en",
-            diarize: false,
-        });
-
-        if (result && typeof result === 'object') {
-            if ('text' in result && typeof result.text === 'string') {
-                return result.text;
-            }
-            if ('content' in result && typeof result.content === 'string') {
-                return result.content;
-            }
-            if ('transcript' in result && typeof result.transcript === 'string') {
-                return result.transcript;
-            }
-            if ('channels' in result && Array.isArray(result.channels)) {
-                const texts = result.channels
-                    .map(channel => channel.content || channel.text || channel.transcript)
-                    .filter(Boolean);
-                if (texts.length > 0) {
-                    return texts.join(' ');
-                }
-            }
-
-            return `Could not extract text from response: ${JSON.stringify(result)}`;
-        }
-
-        return "No transcription content received. Check console for details.";
-
-    } catch (err) {
-        const error = err as Error;
-        console.error("ElevenLabs Transcription Error:", error);
-        throw new Error(`Failed to transcribe audio: ${error.message}`);
-    }
+  try {
+    return await transcribeAudio({ uri: fileUri, name: 'recording.m4a', type: 'audio/mp4' });
+  } catch (err) {
+    const error = err as Error;
+    console.error('Transcription Error:', error);
+    throw new Error(`Failed to transcribe audio: ${error.message}`);
+  }
 }
 
   async function handleSend() {
